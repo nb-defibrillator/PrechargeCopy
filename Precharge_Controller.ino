@@ -12,7 +12,7 @@ Precharge Controller
 
 CANSAME5x CAN;
 
-#define ULONG_MAX 4294967295UL //Serves as a 'null' state for the timers
+#define MAX_TIMER 4294967295UL // 4294967295UL Serves as a 'null' state for the timers
 
 //pin IDs
 const uint8_t AIR_Precharge = 4; 
@@ -32,19 +32,19 @@ bool dischargeFinished = false; // True if the discharge finished!
 
 //All measurements of time are in milliseconds!
 
-const long bitrate = 250e3; // 250 kbps
+const long bitrate = 500000; // 500 kbps
 
-unsigned long initalizeStart = ULONG_MAX; // Start time for waiting for Discharge Enable signal from BMS
+unsigned long initalizeStart = MAX_TIMER; // Start time for waiting for Discharge Enable signal from BMS
 const unsigned long initalizeTimeout = 5e3; // 0.5s -- amount of time to wait for Discharge Enable to initalize before faulting
 
-unsigned long prechargeStart = ULONG_MAX; // The time at which precharge started; in millis; ULONG_MAX acts as a 'null' here.
+unsigned long prechargeStart = MAX_TIMER; // The time at which precharge started; in millis; MAX_TIMER acts as a 'null' here.
 const unsigned long prechargeTimeoutInterval = 10e4; // 10s ---amount of time that has to pass to mean the precharge failed; in millis
 const unsigned long prechargeInterval = 1.5e4; // 1.5s -- amount of time necessary to precharge; in millis
 bool prechargeTimedOut = false;
 
-unsigned long optocouplerActivatedStart = ULONG_MAX; // The time at which Optocoupler was active; in millis
+unsigned long optocouplerActivatedStart = MAX_TIMER; // The time at which Optocoupler was active; in millis
 
-unsigned long dischargeStart = ULONG_MAX;
+unsigned long dischargeStart = MAX_TIMER;
 const unsigned long dischargeInterval = 7.79e7; // 77.9s; the amount of time it takes to discharge; in millis;
 
 // CANbus constants
@@ -98,12 +98,13 @@ void setup() {
   pinMode(BMS_DischargeEn, INPUT);
 
   pinMode(PIN_CAN_STANDBY, OUTPUT);
-  digitalWrite(PIN_CAN_STANDBY, false); // turn off STANDBY
+  digitalWrite(PIN_CAN_STANDBY, LOW); // turn off STANDBY; also try: false
   pinMode(PIN_CAN_BOOSTEN, OUTPUT);
-  digitalWrite(PIN_CAN_BOOSTEN, true); // turn on booster
+  digitalWrite(PIN_CAN_BOOSTEN, HIGH); // turn on booster; also try: true
 
-  while(!Serial);
   Serial.begin(115200);
+  while(!Serial);
+  
    
 
   if(!CAN.begin(bitrate)){
@@ -113,32 +114,46 @@ void setup() {
 
   digitalWrite(AIR_Discharge, HIGH);
 
-  if(!digitalRead(BMS_DischargeEn)) {
-    initalizeStart = millis();
-    while(millis() - initalizeStart < initalizeTimeout) {
-      Serial.println("Waitng for BMS Discharge Enable");
-    }
-  }
-  if(!digitalRead(BMS_DischargeEn)) {
-    Serial.println("Error: BMS Discharge Enable Timeout");
-    fault();
-  }
+  // if(!digitalRead(BMS_DischargeEn)) {
+  //   initalizeStart = millis();
+  //   while(millis() - initalizeStart < initalizeTimeout) {
+  //     Serial.println("Waitng for BMS Discharge Enable");
+  //     delay(100); // added
+  //   }
+  // }
+  // if(!digitalRead(BMS_DischargeEn)) {
+  //   Serial.println("Error: BMS Discharge Enable Timeout");
+  //   fault();
+  // }
+
+  Serial.println("End of setup");
 
 }
 
 void readCAN() {
   int packetSize = CAN.parsePacket();
 
-  if (packetSize) {
+  // Serial.println("CAN!");
+
+  if (packetSize >= 3) {
     Serial.print("Received packet with id ");
     long packetID = CAN.packetId();
-    Serial.print(packetID, HEX);
-    
-    if (packetID == correctID) {
+    Serial.println(packetID);
+    Serial.println(packetID, HEX);
+    for(int i = 0; i < packetSize; i++){
+      Serial.print("field ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(CAN.read());
+    }
+    if (packetID) { // == correctID
       CAN.read();
       CAN.read(); //gets to index 2
       int temp = CAN.read();
       CAN.flush();
+
+      Serial.print("TEMP: ");
+      Serial.println(temp);
 
       if (temp >= 55){
         fault(); 
@@ -147,6 +162,7 @@ void readCAN() {
     }
     
   }
+  delay(500);
 }
 
 void precharge() {
@@ -163,7 +179,7 @@ void precharge() {
     
     //This part waits for a steady signal from the optocoupler, 
     //current duration .5s but that's just a guess.
-    if (optocouplerActivatedStart == ULONG_MAX) optocouplerActivatedStart = now;
+    if (optocouplerActivatedStart == MAX_TIMER) optocouplerActivatedStart = now;
 
     unsigned long chargingInterval = now - optocouplerActivatedStart;
 
@@ -182,7 +198,7 @@ void precharge() {
     digitalWrite(AIR_Precharge, LOW);
     digitalWrite(AIR_Main, LOW);
     digitalWrite(LED_Fault, HIGH);
-    prechargeTimedOut == true;
+    prechargeTimedOut = true;
     fault();
   }
 }
@@ -197,9 +213,9 @@ void discharge() {
 }
 
 void fault() {
-  while (true)
   digitalWrite(AIR_Main, LOW);
   digitalWrite(AIR_Discharge, HIGH);
+  while(1);
 }
 
 void loop() {
@@ -207,22 +223,22 @@ void loop() {
   
   readCAN();
 
-  if (digitalRead(BMS_DischargeEn) == LOW || digitalRead(BMS_MPO) == HIGH || prechargeTimedOut == true) {
-    fault();
-  }
+  // if (digitalRead(BMS_DischargeEn) == LOW || digitalRead(BMS_MPO) == HIGH || prechargeTimedOut == true) {
+  //   fault();
+  // }
 
-  if (carRunning == false) {
-      if (digitalRead(BMS_DischargeEn) == HIGH ) { //&& digitalRead(BMS) == HIGH
-        if (prechargeStart == ULONG_MAX) {   //if the prechargeStart hasn't yet been assigned         
-            digitalWrite(AIR_Precharge, HIGH); //Closes AIR precharge
-            prechargeStart = millis();
-            }
-        precharge();
-      }
-  }
+  // if (carRunning == false) {
+  //     if (digitalRead(BMS_DischargeEn) == HIGH ) { //&& digitalRead(BMS) == HIGH
+  //       if (prechargeStart == MAX_TIMER) {   //if the prechargeStart hasn't yet been assigned         
+  //           digitalWrite(AIR_Precharge, HIGH); //Closes AIR precharge
+  //           prechargeStart = millis();
+  //           }
+  //       precharge();
+  //     }
+  // }
   // else {
   //   if (!Switch2) {
-  //     if (dischargeStart == ULONG_MAX) dischargeStart = millis();
+  //     if (dischargeStart == MAX_TIMER) dischargeStart = millis();
   //     if (dischargeFinished == false) discharge();
   //   }
   // }
