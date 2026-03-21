@@ -8,21 +8,23 @@ Ryanne Wilson
 Precharge Controller
 */
 
-#include <CAN.h>
+#include <CANSAME5x.h>
+
+CANSAME5x CAN;
 
 #define ULONG_MAX 4294967295UL //Serves as a 'null' state for the timers
 
 //pin IDs
-const uint8_t AIR_Precharge = 2; 
-const uint8_t AIR_Main = 3;
-const uint8_t AIR_Discharge = 4;
-const uint8_t BPS_Fault = 5;
-const uint8_t LED_Discharge = 6;
-const uint8_t LED_Fault = 7;
+const uint8_t AIR_Precharge = 4; 
+const uint8_t AIR_Main = 5;
+const uint8_t AIR_Discharge = 13;
+const uint8_t BPS_Fault = 6;
+const uint8_t LED_Discharge = 23;
+const uint8_t LED_Fault = 10;
 
-const uint8_t Optocoupler = 8;
-const uint8_t BMS_DischargeEn = 9;   
-const uint8_t BMS_MPO = 10; // BMS Multi-Purpose Output
+const uint8_t Optocoupler = 9;
+const uint8_t BMS_DischargeEn = 11;   
+const uint8_t BMS_MPO = 12; // BMS Multi-Purpose Output
 
 bool carRunning = false; //True when the car can start driving ; as in, when precharging has finished and is successful.
 bool prechargeFailed = false; //True if the precharge failed.
@@ -30,7 +32,7 @@ bool dischargeFinished = false; // True if the discharge finished!
 
 //All measurements of time are in milliseconds!
 
-const long bitrateCAN = 500e3; // 500 kbps
+const long bitrate = 250e3; // 250 kbps
 
 unsigned long initalizeStart = ULONG_MAX; // Start time for waiting for Discharge Enable signal from BMS
 const unsigned long initalizeTimeout = 5e3; // 0.5s -- amount of time to wait for Discharge Enable to initalize before faulting
@@ -45,7 +47,9 @@ unsigned long optocouplerActivatedStart = ULONG_MAX; // The time at which Optoco
 unsigned long dischargeStart = ULONG_MAX;
 const unsigned long dischargeInterval = 7.79e7; // 77.9s; the amount of time it takes to discharge; in millis;
 
-const int HITEMP_INDEX = 8;  // Index of High Temprature in CAN message 
+// CANbus constants
+const int correctID = 0x003;
+const int HITEMP_INDEX = 2; // 8;  // Index of High Temprature in CAN message
 const int OFFSET = -40;
 
 
@@ -93,11 +97,16 @@ void setup() {
   pinMode(BMS_MPO, INPUT);            // Behavior depends on BMS settings
   pinMode(BMS_DischargeEn, INPUT);
 
+  pinMode(PIN_CAN_STANDBY, OUTPUT);
+  digitalWrite(PIN_CAN_STANDBY, false); // turn off STANDBY
+  pinMode(PIN_CAN_BOOSTEN, OUTPUT);
+  digitalWrite(PIN_CAN_BOOSTEN, true); // turn on booster
+
   while(!Serial);
   Serial.begin(115200);
    
 
-  if(!CAN.begin(250e3)){
+  if(!CAN.begin(bitrate)){
        Serial.println("CAN.begin(...) failed.");
        for(;;) {}
      }
@@ -106,7 +115,7 @@ void setup() {
 
   if(!digitalRead(BMS_DischargeEn)) {
     initalizeStart = millis();
-    while(millis() - initalizeStart < inistalizeTimeout) {
+    while(millis() - initalizeStart < initalizeTimeout) {
       Serial.println("Waitng for BMS Discharge Enable");
     }
   }
@@ -117,6 +126,28 @@ void setup() {
 
 }
 
+void readCAN() {
+  int packetSize = CAN.parsePacket();
+
+  if (packetSize) {
+    Serial.print("Received packet with id ");
+    long packetID = CAN.packetId();
+    Serial.print(packetID, HEX);
+    
+    if (packetID == correctID) {
+      CAN.read();
+      CAN.read(); //gets to index 2
+      int temp = CAN.read();
+      CAN.flush();
+
+      if (temp >= 55){
+        fault(); 
+      }
+
+    }
+    
+  }
+}
 
 void precharge() {
   /**
@@ -166,34 +197,22 @@ void discharge() {
 }
 
 void fault() {
+  while (true)
   digitalWrite(AIR_Main, LOW);
   digitalWrite(AIR_Discharge, HIGH);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if(CAN.available()){
-     CanMsg const msg = CAN.read();
-     Serial.println(msg);
-    int idMessage = msg.getStandardid();
-     Serial.print("IDMessage= ");
-     Serial.println(idMessage);
+  
+  readCAN();
 
-     // offset -40
-     int temp = msg.data[HITEMP_INDEX];
-     temp -= OFFSET;
-
-     if (temp >= 55){
-       fault(); 
-   }
-
-   if (digitalRead(BMS_DischargeEn) == LOW || p){
+  if (digitalRead(BMS_DischargeEn) == LOW || digitalRead(BMS_MPO) == HIGH || prechargeTimedOut == true) {
     fault();
-   }
+  }
 
   if (carRunning == false) {
       if (digitalRead(BMS_DischargeEn) == HIGH ) { //&& digitalRead(BMS) == HIGH
-        if ()
         if (prechargeStart == ULONG_MAX) {   //if the prechargeStart hasn't yet been assigned         
             digitalWrite(AIR_Precharge, HIGH); //Closes AIR precharge
             prechargeStart = millis();
