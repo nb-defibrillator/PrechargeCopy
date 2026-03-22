@@ -164,10 +164,10 @@ void loop() {
         precharge();
       }
   }
-  else {
-    if (!Switch2) {
-      if (dischargeStart == MAX_TIMER) dischargeStart = millis();
-      if (dischargeFinished == false) discharge();
-    }
-  }
+  // else {
+  //   if (!Switch2) {
+  //     if (dischargeStart == MAX_TIMER) dischargeStart = millis();
+  //     if (dischargeFinished == false) discharge();
+  //   }
+  // }
 }
