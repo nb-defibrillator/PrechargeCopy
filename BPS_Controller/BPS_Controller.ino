@@ -74,8 +74,12 @@ void readCAN() {
 
   // Serial.println("CAN!");
   if(packetSize){
+    long packetID = CAN.packetId();
     if (packetID == correctID) {
       for(int i = 0; i < HITEMP_INDEX; i++){ // skips past the fields until reaching the desired index.
+        Serial.print("field ");
+        Serial.print(i);
+        Serial.print(": ");
         CAN.read();
       }
       int temp = CAN.read(); // index 2
