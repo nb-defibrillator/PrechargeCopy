@@ -180,8 +180,6 @@ void loop() {
   if(digitalRead(BMS_MPO) == HIGH
     || digitalRead(Feather_Thermistor_Fault) == HIGH){
       bps_fault();
-    }else{
-      digitalWrite(BPS_Fault, LOW);
     }
 
   if (carRunning == false) {
