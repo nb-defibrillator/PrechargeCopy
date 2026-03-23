@@ -13,12 +13,31 @@ Feel free to change any of the output pins!
 
 #define MAX_TIMER 4294967295UL // 4294967295UL Serves as a 'null' state for the timers
 
+//2 TAKEN
+//3 TAKEN
+//4 TAKEN
+//5 TAKEN
+//6 (ANALOG ONLY)
+//7 (ANALOG ONLY)
+//8 TAKEN 
+//9 TAKEN
+//10 TAKEN
+//11 TAKEN
+//12 TAKEN
+//
+//13
+//14 TAKEN
+//15
+//16
+//17
+//18
+//19
 // output pins
 #define AIR_Precharge 4 
 #define AIR_Main 5
-#define AIR_Discharge 13
-#define BPS_Fault 6
-#define LED_Discharge 23
+#define AIR_Discharge 14
+#define BPS_Fault 8
+#define LED_Discharge 3
 #define LED_Fault 10
 
 // input pins
@@ -84,7 +103,7 @@ void setup() {
   }
   if(!digitalRead(BMS_DischargeEn)) {
     Serial.println("Error: BMS Discharge Enable Timeout");
-    fault();
+    precharge_fault();
   }
 
   Serial.println("End of setup");
@@ -125,7 +144,7 @@ void precharge() {
     digitalWrite(AIR_Main, LOW);
     digitalWrite(LED_Fault, HIGH);
     prechargeTimedOut = true;
-    fault();
+    precharge_fault();
   }
 }
 
@@ -138,22 +157,32 @@ void discharge() {
   }
 }
 
-void fault() {
+void precharge_fault() {
   digitalWrite(AIR_Main, LOW);
   digitalWrite(AIR_Discharge, HIGH);
-  digitalWrite(BPS_Fault, HIGH);
   while(1);
+}
+
+void bps_fault(){
+  digitalWrite(BPS_Fault, HIGH);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
+  // Precharge Fault
   if (digitalRead(BMS_DischargeEn) == LOW 
-      || digitalRead(BMS_MPO) == HIGH
-      || digitalRead(Feather_Thermistor_Fault) == HIGH
       || prechargeTimedOut == true) {
-    fault();
+    precharge_fault();
   }
+
+  // BPS Fault
+  if(digitalRead(BMS_MPO) == HIGH
+    || digitalRead(Feather_Thermistor_Fault) == HIGH){
+      bps_fault();
+    }else{
+      digitalWrite(BPS_Fault, LOW);
+    }
 
   if (carRunning == false) {
       if (digitalRead(BMS_DischargeEn) == HIGH ) { //&& digitalRead(BMS) == HIGH
