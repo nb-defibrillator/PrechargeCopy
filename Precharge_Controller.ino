@@ -77,6 +77,7 @@ void setup() {
   pinMode(AIR_Discharge, OUTPUT);     // Normally closed
   
   pinMode(BPS_Fault, OUTPUT);         // Normally open ??
+  digitalWrite(BPS_Fault, LOW);
 
   pinMode(LED_Fault, OUTPUT);
   pinMode(LED_Discharge, OUTPUT);
@@ -88,8 +89,9 @@ void setup() {
   pinMode(BMS_DischargeEn, INPUT);
   pinMode(Feather_Thermistor_Fault, INPUT);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
   // while(!Serial);  // THIS FOR DEBUGGING. TURN OFF FOR ACTUAL USE.
+  Serial.println("Serial works!");
 
 
   digitalWrite(AIR_Discharge, HIGH);
@@ -176,10 +178,12 @@ void loop() {
     precharge_fault();
   }
 
-  // BPS Fault
-  if(digitalRead(BMS_MPO) == HIGH
+
+  if(digitalRead(BMS_MPO) == LOW
     || digitalRead(Feather_Thermistor_Fault) == HIGH){
       bps_fault();
+    }else{
+      digitalWrite(BPS_Fault, LOW);
     }
 
   if (carRunning == false) {
@@ -191,10 +195,5 @@ void loop() {
         precharge();
       }
   }
-  // else {
-  //   if (!Switch2) {
-  //     if (dischargeStart == MAX_TIMER) dischargeStart = millis();
-  //     if (dischargeFinished == false) discharge();
-  //   }
-  // }
+
 }
