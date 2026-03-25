@@ -60,8 +60,7 @@ void setup() {
   // while(!Serial);  // THIS FOR DEBUGGING. TURN OFF FOR ACTUAL USE.
 
   if(!CAN.begin(bitrate)){ // Fault if CAN begin fails?
-       Serial.println("CAN.begin(...) failed.");
-      //  for(;;) {}
+      Serial.println("CAN.begin(...) failed.");
       fault();
      }
 
@@ -83,7 +82,9 @@ void readCAN() {
         CAN.read();
       }
       int temp = CAN.read(); // index 2
-      CAN.flush();
+      while (CAN.available()) {
+        CAN.read();   // empties the CAN input buffer
+      }
 
       Serial.print("TEMP: ");
       Serial.println(temp);
